@@ -51,7 +51,8 @@ export default function ManualEntryPage() {
       
       const currentTime = Date.now();
       // Reset buffer if too slow (manual typing likely, or start of scan)
-      if (currentTime - lastKeyTime > 100) {
+      // Standard scanner is very fast (<50ms), but let's be generous (200ms)
+      if (currentTime - lastKeyTime > 200) {
         buffer = ''; 
       }
       lastKeyTime = currentTime;
@@ -60,13 +61,19 @@ export default function ManualEntryPage() {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       if (e.key === 'Enter') {
-         if (buffer.length >= 3) { // arbitrary min length for barcode
-             e.preventDefault(); // Prevent form submit or other actions
-             setCode(buffer); // Fill the input
+         if (buffer.length >= 3) {
+             e.preventDefault(); 
+             setCode(buffer); 
              buffer = '';
          }
       } else if (e.key.length === 1) {
           buffer += e.key;
+          // EAN13 Trigger: If we hit 13 chars rapidly, assume it's a code
+          if (buffer.length === 13) {
+              e.preventDefault();
+              setCode(buffer);
+              buffer = '';
+          }
       }
     };
 
