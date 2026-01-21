@@ -42,23 +42,30 @@ export default function ManualEntryPage() {
   const [quantity, setQuantity] = useState('');
   const [date, setDate] = useState('');
 
-  const handleAddItem = (e: React.FormEvent) => {
+  const handleAddItem = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!code || !date) return;
+    const formData = new FormData(e.currentTarget);
+    const codeVal = formData.get('code13') as string;
+    const qtyVal = formData.get('quantity') as string;
+    const dateVal = formData.get('expirationDate') as string;
+
+    if (!codeVal || !dateVal) return;
 
     const newItem: ManualItem = {
       id: crypto.randomUUID(),
-      code13: code,
-      quantity: quantity || '1',
-      expirationDate: date,
+      code13: codeVal,
+      quantity: qtyVal || '1',
+      expirationDate: dateVal,
     };
 
     setItems((prev) => [...prev, newItem]);
     
-    // Reset form but keep focus logic if needed (simple reset for now)
+    // Reset form state
     setCode('');
     setQuantity('');
-    setDate('');
+    // We might want to KEEP the date for convenience in scanning multiple same-batch items?
+    // User didn't ask but it's common practice. Let's keep date clear for now as requested initially ("reset form").
+    setDate(''); 
   };
 
   const handleRemoveItem = (id: string) => {
@@ -125,6 +132,7 @@ export default function ManualEntryPage() {
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Code EAN / Article</label>
                 <input 
+                  name="code13"
                   type="text" 
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
@@ -138,6 +146,7 @@ export default function ManualEntryPage() {
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Quantité</label>
                 <input 
+                  name="quantity"
                   type="number" 
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
@@ -149,6 +158,7 @@ export default function ManualEntryPage() {
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Date de Péremption</label>
                 <input 
+                  name="expirationDate"
                   type="date" 
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
