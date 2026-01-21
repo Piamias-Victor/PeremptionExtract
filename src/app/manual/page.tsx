@@ -37,62 +37,15 @@ export default function ManualEntryPage() {
     localStorage.setItem('manual_draft', JSON.stringify(items));
   }, [items]);
 
-  // Global Scanner Listener
-  useEffect(() => {
-    let buffer = '';
-    let lastKeyTime = Date.now();
 
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      // If user is typing in Quantity or Date, ignore
-      if (target.tagName === 'INPUT' && (target as HTMLInputElement).name !== 'code13') {
-        return;
-      }
-      
-      const currentTime = Date.now();
-      // Reset buffer if too slow (manual typing likely, or start of scan)
-      // Standard scanner is very fast (<50ms), but let's be generous (200ms)
-      if (currentTime - lastKeyTime > 200) {
-        buffer = ''; 
-      }
-      lastKeyTime = currentTime;
-
-      // Ignore modifiers
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
-
-      if (e.key === 'Enter') {
-         if (buffer.length >= 3) {
-             e.preventDefault(); 
-             setCode(buffer); 
-             buffer = '';
-         }
-      } else if (e.key.length === 1) {
-          buffer += e.key;
-          // EAN13 Trigger: If we hit 13 chars rapidly, assume it's a code
-          if (buffer.length === 13) {
-              e.preventDefault();
-              setCode(buffer);
-              buffer = '';
-          }
-      }
-    };
-
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
 
   // Form State
   const [code, setCode] = useState('');
   const [quantity, setQuantity] = useState('');
   const [date, setDate] = useState('');
 
-  const handleAddItem = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const codeVal = formData.get('code13') as string;
-    const qtyVal = formData.get('quantity') as string;
-    const dateVal = formData.get('expirationDate') as string;
-
+  // Reusable Add Logic
+  const addItem = (codeVal: string, qtyVal: string, dateVal: string) => {
     if (!codeVal || !dateVal) return;
 
     const newItem: ManualItem = {
@@ -103,13 +56,35 @@ export default function ManualEntryPage() {
     };
 
     setItems((prev) => [...prev, newItem]);
-    
-    // Reset form state
-    setCode('');
-    setQuantity('');
-    // We might want to KEEP the date for convenience in scanning multiple same-batch items?
-    // User didn't ask but it's common practice. Let's keep date clear for now as requested initially ("reset form").
-    setDate(''); 
+    setCode(''); // Clear code for next scan
+    // Keep date/qty for batch entry convenience
+  };
+
+  // Input Change Handler with Auto-Submit
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setCode(val);
+
+      // Auto-Submit on EAN13 length
+      if (val.length === 13) {
+          if (date) {
+            addItem(val, quantity, date);
+          } else {
+            // If no date, move focus to date field
+            const dateInput = document.querySelector('input[name="expirationDate"]') as HTMLInputElement;
+            if (dateInput) dateInput.focus();
+          }
+      }
+  };
+
+  const handleAddItem = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    addItem(
+        formData.get('code13') as string, 
+        formData.get('quantity') as string, 
+        formData.get('expirationDate') as string
+    );
   };
 
   const handleRemoveItem = (id: string) => {
@@ -179,10 +154,15 @@ export default function ManualEntryPage() {
                   name="code13"
                   type="text" 
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={handleCodeChange}
                   placeholder="Scannez ou tapez..."
                   className="w-full bg-background border border-input rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                   autoFocus
+                  onBlur={(e) => {
+                      // Optional: Force keep focus for continuous scanning?
+                      // Let's not be too aggressive to allow user to click Date
+                     // e.target.focus(); 
+                  }}
                   required
                 />
               </div>
