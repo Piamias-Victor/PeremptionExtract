@@ -56,8 +56,17 @@ export default function ManualEntryPage() {
     };
 
     setItems((prev) => [...prev, newItem]);
-    setCode(''); // Clear code for next scan
-    // Keep date/qty for batch entry convenience
+    
+    // Reset ALL fields as requested
+    setCode('');
+    setQuantity(''); 
+    setDate('');
+
+    // Force focus back to Code input for next scan
+    setTimeout(() => {
+        const codeInput = document.querySelector('input[name="code13"]') as HTMLInputElement;
+        if (codeInput) codeInput.focus();
+    }, 50);
   };
 
   // Input Change Handler with Auto-Submit
@@ -85,6 +94,15 @@ export default function ManualEntryPage() {
         formData.get('quantity') as string, 
         formData.get('expirationDate') as string
     );
+  };
+
+  const handleDateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+        e.preventDefault(); // Prevent default form submit which might reload or do weird things
+        if (code && date) {
+            addItem(code, quantity, date);
+        }
+    }
   };
 
   const handleRemoveItem = (id: string) => {
@@ -186,6 +204,7 @@ export default function ManualEntryPage() {
                   type="date" 
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
+                  onKeyDown={handleDateKeyDown}
                   className="w-full bg-background border border-input rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                   required
                 />
