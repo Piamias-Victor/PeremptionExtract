@@ -76,14 +76,19 @@ export default function ManualEntryPage() {
 
       // Auto-Submit on EAN13 length
       if (val.length === 13) {
-          if (date) {
-            addItem(val, quantity, date);
-          } else {
-            // If no date, move focus to date field
-            const dateInput = document.querySelector('input[name="expirationDate"]') as HTMLInputElement;
-            if (dateInput) dateInput.focus();
-          }
+          // Move focus to Quantity field
+          const qtyInput = document.querySelector('input[name="quantity"]') as HTMLInputElement;
+          if (qtyInput) qtyInput.focus();
       }
+  };
+
+  const handleQtyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+        e.preventDefault(); 
+        // Move focus to Date field
+        const dateInput = document.querySelector('input[name="expirationDate"]') as HTMLInputElement;
+        if (dateInput) dateInput.focus();
+    }
   };
 
   const handleAddItem = (e: React.FormEvent<HTMLFormElement>) => {
@@ -192,6 +197,7 @@ export default function ManualEntryPage() {
                   type="number" 
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
+                  onKeyDown={handleQtyKeyDown}
                   placeholder="1"
                   className="w-full bg-background border border-input rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
