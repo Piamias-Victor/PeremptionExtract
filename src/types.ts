@@ -10,7 +10,6 @@ export interface Product {
   prix_sans_remise?: string | null;
   remise?: string | null;
   prix_remisee?: string | null;
-  prix_remisee?: string | null;
   createdAt?: string | Date;
 }
 

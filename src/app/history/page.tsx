@@ -96,7 +96,6 @@ export default function HistoryPage() {
                                <div className="text-right">
                                  <span className="block font-medium text-xs opacity-70">Ajouté le</span>
                                  <span>
-                                    {/* @ts-expect-error createdAt may not be in type def yet but is in DB */}
                                     {product.createdAt ? new Date(product.createdAt).toLocaleDateString('fr-FR') : '-'}
                                  </span>
                               </div>
@@ -140,7 +139,6 @@ export default function HistoryPage() {
                               </td>
                               <td className="px-4 py-3 font-mono text-xs">{product.lotNumber || '-'}</td>
                               <td className="px-4 py-3 text-xs text-muted-foreground">
-                                   {/* @ts-expect-error createdAt dynamic */}
                                    {product.createdAt ? new Date(product.createdAt).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}) : '-'}
                               </td>
                            </tr>
