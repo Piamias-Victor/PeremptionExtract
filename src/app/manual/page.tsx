@@ -37,6 +37,43 @@ export default function ManualEntryPage() {
     localStorage.setItem('manual_draft', JSON.stringify(items));
   }, [items]);
 
+  // Global Scanner Listener
+  useEffect(() => {
+    let buffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      // If user is typing in Quantity or Date, ignore
+      if (target.tagName === 'INPUT' && (target as HTMLInputElement).name !== 'code13') {
+        return;
+      }
+      
+      const currentTime = Date.now();
+      // Reset buffer if too slow (manual typing likely, or start of scan)
+      if (currentTime - lastKeyTime > 100) {
+        buffer = ''; 
+      }
+      lastKeyTime = currentTime;
+
+      // Ignore modifiers
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      if (e.key === 'Enter') {
+         if (buffer.length >= 3) { // arbitrary min length for barcode
+             e.preventDefault(); // Prevent form submit or other actions
+             setCode(buffer); // Fill the input
+             buffer = '';
+         }
+      } else if (e.key.length === 1) {
+          buffer += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   // Form State
   const [code, setCode] = useState('');
   const [quantity, setQuantity] = useState('');
