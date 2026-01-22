@@ -123,13 +123,17 @@ export default function ManualEntryPage() {
       const res = await fetch('/api/products/manual-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products: items }),
+        body: JSON.stringify({ 
+            products: items,
+            customName: batchName || undefined 
+        }),
       });
 
       if (res.ok) {
         setSuccessMsg('Lot ajouté avec succès ! Redirection...');
         localStorage.removeItem('manual_draft'); // Clear persistence on success
         setItems([]);
+        setBatchName('');
         setTimeout(() => {
           router.push('/dashboard');
         }, 1500);
@@ -143,6 +147,8 @@ export default function ManualEntryPage() {
       setLoading(false);
     }
   };
+  // Batch Name State
+  const [batchName, setBatchName] = useState('');
 
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto w-full animate-fade-in space-y-8">
@@ -297,8 +303,20 @@ export default function ManualEntryPage() {
                )}
             </div>
 
+            {/* Batch Name Input */}
+            <div className="px-4 pt-4 bg-muted/5 border-t border-border/50">
+               <label className="block text-xs font-medium text-muted-foreground mb-1">Nom du lot (optionnel)</label>
+               <input 
+                  type="text" 
+                  value={batchName}
+                  onChange={(e) => setBatchName(e.target.value)}
+                  placeholder={`Ex: Saisie du ${new Date().toLocaleDateString()}`}
+                  className="w-full bg-background border border-input rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+               />
+            </div>
+
             {/* Footer Actions */}
-            <div className="p-4 border-t border-border bg-muted/10 flex justify-end gap-3">
+            <div className="p-4 bg-muted/10 flex justify-end gap-3 rounded-b-lg">
                  <Button 
                     variant="ghost" 
                     className="text-muted-foreground hover:text-foreground"

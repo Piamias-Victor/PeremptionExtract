@@ -12,7 +12,7 @@ interface ManualProductInput {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { products } = body as { products: ManualProductInput[] };
+    const { products, customName } = body as { products: ManualProductInput[], customName?: string };
 
     if (!products || products.length === 0) {
       return NextResponse.json(
@@ -24,7 +24,11 @@ export async function POST(request: NextRequest) {
     // 1. Create the container Invoice
     const now = new Date();
     const formattedDate = format(now, "dd/MM/yyyy HH:mm", { locale: fr });
-    const invoiceName = `Saisie_Manuelle_${formattedDate}`;
+    
+    // Use custom name if provided, otherwise default format
+    const invoiceName = customName?.trim() 
+      ? customName 
+      : `Saisie_Manuelle_${formattedDate}`;
 
     const invoice = await prisma.invoice.create({
       data: {
