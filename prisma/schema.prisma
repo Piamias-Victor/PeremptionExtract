@@ -30,6 +30,8 @@ model Product {
   remise           String?
   prix_remisee     String?
   createdAt        DateTime  @default(now())
+  zone             String?   @default("DEPOT") // "DEPOT" or "EDV"
+  operator         String?   // "Migue", "Salma", "Carla", "P-A", "Alex"
 }
 
 model ProcessedEmail {

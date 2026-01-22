@@ -23,9 +23,23 @@ export default function ManualEntryPage() {
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     const saved = localStorage.getItem('manual_draft');
+    const savedConfig = localStorage.getItem('manual_config');
+    
     if (saved) {
       try {
         setItems(JSON.parse(saved));
+      } catch (e) {
+        // ignore invalid JSON
+      }
+    }
+    
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        if (config.operator) setOperator(config.operator);
+        if (config.zone) setZone(config.zone);
+        if (config.batchName) setBatchName(config.batchName);
+        if (config.configCompleted) setConfigCompleted(config.configCompleted);
       } catch (e) {
         // ignore invalid JSON
       }
@@ -114,6 +128,36 @@ export default function ManualEntryPage() {
     setItems((prev) => prev.filter(item => item.id !== id));
   };
 
+  // Batch Name State
+  const [batchName, setBatchName] = useState('');
+  const [zone, setZone] = useState('DEPOT'); // Default to DEPOT
+  const [operator, setOperator] = useState(''); // No default operator
+  const [configCompleted, setConfigCompleted] = useState(false); // Track if config is done
+  const OPERATORS = ['Migue', 'Salma', 'Carla', 'P-A', 'Alex'];
+
+  // Save config to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('manual_config', JSON.stringify({
+      operator,
+      zone,
+      batchName,
+      configCompleted
+    }));
+  }, [operator, zone, batchName, configCompleted]);
+
+  // Readiness Check for configuration
+  const isConfigReady = !!operator && !!zone;
+
+  const handleStartScanning = () => {
+    if (isConfigReady) {
+      setConfigCompleted(true);
+    }
+  };
+
+  const handleBackToConfig = () => {
+    setConfigCompleted(false);
+  };
+
   const handleSubmitBatch = async () => {
     if (items.length === 0) return;
     setLoading(true);
@@ -125,15 +169,20 @@ export default function ManualEntryPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
             products: items,
-            customName: batchName || undefined 
+            customName: batchName || undefined,
+            zone: zone,
+            operator: operator
         }),
       });
 
       if (res.ok) {
         setSuccessMsg('Lot ajouté avec succès ! Redirection...');
         localStorage.removeItem('manual_draft'); // Clear persistence on success
+        localStorage.removeItem('manual_config'); // Clear config on success
         setItems([]);
         setBatchName('');
+        setConfigCompleted(false); // Reset to config screen
+        setOperator(''); // Reset operator for next session
         setTimeout(() => {
           router.push('/dashboard');
         }, 1500);
@@ -147,8 +196,6 @@ export default function ManualEntryPage() {
       setLoading(false);
     }
   };
-  // Batch Name State
-  const [batchName, setBatchName] = useState('');
 
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto w-full animate-fade-in space-y-8">
@@ -156,7 +203,9 @@ export default function ManualEntryPage() {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Saisie Manuelle</h1>
-          <p className="text-muted-foreground">Ajoutez des produits manuellement via une saisie rapide.</p>
+          <p className="text-muted-foreground">
+            {!configCompleted ? 'Configurez votre session de saisie' : 'Scannez vos produits'}
+          </p>
         </div>
         <Link href="/dashboard">
           <Button variant="outline" className="border-border text-muted-foreground hover:text-foreground">
@@ -171,30 +220,135 @@ export default function ManualEntryPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Formulaire */}
-        <div className="md:col-span-1 space-y-6">
-          <Card className="p-6 border-indigo-500/20 bg-muted/30">
-            <h2 className="font-semibold text-lg mb-4 text-foreground">Nouvel Article</h2>
-            <form onSubmit={handleAddItem} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Code EAN / Article</label>
-                <input 
-                  name="code13"
-                  type="text" 
-                  value={code}
-                  onChange={handleCodeChange}
-                  placeholder="Scannez ou tapez..."
-                  className="w-full bg-background border border-input rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                  autoFocus
-                  onBlur={(e) => {
-                      // Optional: Force keep focus for continuous scanning?
-                      // Let's not be too aggressive to allow user to click Date
-                     // e.target.focus(); 
-                  }}
-                  required
-                />
+      {/* Configuration Screen */}
+      {!configCompleted ? (
+        <Card className="p-8 border-indigo-500/20 bg-muted/10 max-w-2xl mx-auto">
+          <h2 className="text-xl font-semibold mb-6 text-center text-foreground">Configuration de la session</h2>
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-2">Nom du lot (optionnel)</label>
+              <input 
+                type="text" 
+                value={batchName}
+                onChange={(e) => setBatchName(e.target.value)}
+                placeholder={`Ex: Saisie du ${new Date().toLocaleDateString()}`}
+                className="w-full bg-background border border-input rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-2">
+                Zone de signalement <span className="text-red-400">*</span>
+              </label>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg border border-input hover:bg-white/5 transition-colors">
+                  <input 
+                    type="radio" 
+                    name="zone" 
+                    value="DEPOT" 
+                    checked={zone === 'DEPOT'}
+                    onChange={(e) => setZone(e.target.value)}
+                    className="text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                  />
+                  <span className="text-sm font-medium">Dépôt</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg border border-input hover:bg-white/5 transition-colors">
+                  <input 
+                    type="radio" 
+                    name="zone" 
+                    value="EDV" 
+                    checked={zone === 'EDV'}
+                    onChange={(e) => setZone(e.target.value)}
+                    className="text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                  />
+                  <span className="text-sm font-medium">Espace de Vente (EDV)</span>
+                </label>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-2">
+                Opérateur <span className="text-red-400">*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {OPERATORS.map((op) => (
+                  <button
+                    key={op}
+                    type="button"
+                    onClick={() => setOperator(op)}
+                    className={`px-4 py-3 text-sm rounded-lg border transition-all ${
+                      operator === op 
+                        ? 'bg-indigo-600 border-indigo-500 text-white font-medium shadow-lg transform scale-105' 
+                        : 'bg-background border-input hover:border-indigo-500/50 hover:bg-muted/50'
+                    }`}
+                  >
+                    {op}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Button 
+              onClick={handleStartScanning}
+              disabled={!isConfigReady}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-6 text-base font-semibold mt-8"
+            >
+              {isConfigReady ? '✓ Commencer la saisie' : '⚠ Sélectionnez une zone et un opérateur'}
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        /* Scanning Screen */
+        <>
+          {/* Session Info Banner */}
+          <div className="bg-muted/30 border border-border rounded-lg p-4">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+              <div className="flex flex-col md:flex-row gap-3 md:gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground text-xs">Opérateur:</span>
+                  <span className="font-semibold text-indigo-400">{operator}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground text-xs">Zone:</span>
+                  <span className="font-semibold text-indigo-400">{zone}</span>
+                </div>
+                {batchName && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs">Lot:</span>
+                    <span className="font-semibold text-foreground">{batchName}</span>
+                  </div>
+                )}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleBackToConfig}
+                className="text-xs w-full md:w-auto"
+              >
+                ← Modifier la config
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Formulaire */}
+            <div className="md:col-span-1 space-y-6">
+              <Card className="p-6 border-indigo-500/20 bg-muted/30">
+                <h2 className="font-semibold text-lg mb-4 text-foreground">Nouvel Article</h2>
+                <form onSubmit={handleAddItem} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Code EAN / Article</label>
+                    <input 
+                      name="code13"
+                      type="text" 
+                      value={code}
+                      onChange={handleCodeChange}
+                      placeholder="Scannez ou tapez..."
+                      className="w-full bg-background border border-input rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      autoFocus
+                      required
+                    />
+                  </div>
 
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Quantité</label>
@@ -303,18 +457,6 @@ export default function ManualEntryPage() {
                )}
             </div>
 
-            {/* Batch Name Input */}
-            <div className="px-4 pt-4 bg-muted/5 border-t border-border/50">
-               <label className="block text-xs font-medium text-muted-foreground mb-1">Nom du lot (optionnel)</label>
-               <input 
-                  type="text" 
-                  value={batchName}
-                  onChange={(e) => setBatchName(e.target.value)}
-                  placeholder={`Ex: Saisie du ${new Date().toLocaleDateString()}`}
-                  className="w-full bg-background border border-input rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-               />
-            </div>
-
             {/* Footer Actions */}
             <div className="p-4 bg-muted/10 flex justify-end gap-3 rounded-b-lg">
                  <Button 
@@ -336,6 +478,8 @@ export default function ManualEntryPage() {
           </Card>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

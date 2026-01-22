@@ -12,13 +12,26 @@ interface ManualProductInput {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { products, customName } = body as { products: ManualProductInput[], customName?: string };
+    const { products, customName, zone, operator } = body as { 
+        products: ManualProductInput[], 
+        customName?: string, 
+        zone?: string,
+        operator?: string 
+    };
 
     if (!products || products.length === 0) {
       return NextResponse.json(
         { success: false, message: "No products provided" },
         { status: 400 },
       );
+    }
+    
+    // Validate operator requirement (server-side check as backup)
+    if (!operator) {
+         return NextResponse.json(
+            { success: false, message: "Operator is required" },
+            { status: 400 },
+          );
     }
 
     // 1. Create the container Invoice
@@ -40,6 +53,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Process products and resolve names
     const productsToCreate = [];
+    const targetZone = zone || "DEPOT"; // Default to DEPOT if not specified
 
     for (const p of products) {
       let resolvedName = "Produit Inconnu (Manual)";
@@ -74,6 +88,8 @@ export async function POST(request: NextRequest) {
         prix_remisee: resolvedPriceRemise,
         // Manual entry metadata
         lotNumber: "MANUAL",
+        zone: targetZone,
+        operator: operator,
       });
     }
 

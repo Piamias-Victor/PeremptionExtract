@@ -92,7 +92,7 @@ export async function extractDataFromText(text: string): Promise<ExtractedData |
     }
 }
 
-export async function saveInvoiceToDB(filename: string, text: string, data: ExtractedData) {
+export async function saveInvoiceToDB(filename: string, text: string, data: ExtractedData, zone: string = "DEPOT", operator: string | null = null) {
     if (!data.products || data.products.length === 0) return null;
 
     return await prisma.invoice.create({
@@ -109,7 +109,9 @@ export async function saveInvoiceToDB(filename: string, text: string, data: Extr
             rotation_mensuelle: p.rotation_mensuelle || null,
             prix_sans_remise: p.prix_sans_remise || null,
             remise: p.remise || null,
-            prix_remisee: p.prix_remisee || null
+            prix_remisee: p.prix_remisee || null,
+            zone: zone,
+            operator: operator
             }))
         }
         }
