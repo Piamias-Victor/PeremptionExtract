@@ -100,10 +100,18 @@ export async function POST(request: NextRequest) {
       count: productsToCreate.length,
       invoiceId: invoice.id,
     });
-  } catch (error) {
-    console.error("Manual batch upload error:", error);
+  } catch (error: any) {
+    console.error("Manual batch upload error details:", {
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    });
     return NextResponse.json(
-      { success: false, message: "Batch creation failed" },
+      { 
+        success: false, 
+        message: `Batch creation failed: ${error.message || 'Unknown error'}`,
+        details: error.stack 
+      },
       { status: 500 },
     );
   }
