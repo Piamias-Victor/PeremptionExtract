@@ -57,6 +57,7 @@ export default function ManualEntryPage() {
   const [code, setCode] = useState('');
   const [quantity, setQuantity] = useState('');
   const [date, setDate] = useState('');
+  const [potentialDuplicates, setPotentialDuplicates] = useState<any[]>([]);
 
   // Reusable Add Logic
   const addItem = (codeVal: string, qtyVal: string, dateVal: string) => {
@@ -75,6 +76,7 @@ export default function ManualEntryPage() {
     setCode('');
     setQuantity(''); 
     setDate('');
+    setPotentialDuplicates([]); // Reset duplicates warning
 
     // Force focus back to Code input for next scan
     setTimeout(() => {
@@ -83,16 +85,38 @@ export default function ManualEntryPage() {
     }, 50);
   };
 
+  // Check for duplicates
+  const checkDuplicates = async (codeToCheck: string) => {
+      if (!codeToCheck || codeToCheck.length < 3) {
+          setPotentialDuplicates([]);
+          return;
+      }
+      try {
+          const res = await fetch(`/api/products/check?code=${codeToCheck}`);
+          const data = await res.json();
+          if (data.success && data.duplicates.length > 0) {
+              setPotentialDuplicates(data.duplicates);
+          } else {
+              setPotentialDuplicates([]);
+          }
+      } catch (err) {
+          console.error("Error checking duplicates", err);
+      }
+  };
+
   // Input Change Handler with Auto-Submit
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value;
       setCode(val);
 
-      // Auto-Submit on EAN13 length
+      // Check for duplicates when code is long enough (e.g. 13 chars)
       if (val.length === 13) {
+          checkDuplicates(val);
           // Move focus to Quantity field
           const qtyInput = document.querySelector('input[name="quantity"]') as HTMLInputElement;
           if (qtyInput) qtyInput.focus();
+      } else {
+          setPotentialDuplicates([]);
       }
   };
 
@@ -349,6 +373,32 @@ export default function ManualEntryPage() {
                       required
                     />
                   </div>
+                  
+                  {potentialDuplicates.length > 0 && (
+                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 animate-fade-in">
+                          <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xl">⚠️</span>
+                              <h3 className="text-sm font-semibold text-amber-500">Produit déjà scanné !</h3>
+                          </div>
+                          <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                              {potentialDuplicates.map((dup) => (
+                                  <div key={dup.id} className="text-xs text-muted-foreground bg-amber-500/5 p-2 rounded">
+                                      <div className="flex justify-between font-medium text-foreground">
+                                          <span>Qté: {dup.quantity}</span>
+                                          <span>{new Date(dup.expirationDate).toLocaleDateString()}</span>
+                                      </div>
+                                      <div className="flex justify-between mt-1">
+                                          <span>{dup.operator || 'Inconnu'}</span>
+                                          <span>{dup.zone || 'Inconnu'}</span>
+                                      </div>
+                                      <div className="text-[10px] mt-1 opacity-70">
+                                          Le {new Date(dup.createdAt).toLocaleDateString()}
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
 
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Quantité</label>
