@@ -402,7 +402,7 @@ export default function DashboardPage() {
                                         ) : '-'}
                                     </td>
                                     <td className="px-6 py-4 text-sm font-mono text-muted-foreground">
-                                        {p.catalogRotation !== null ? p.catalogRotation.toFixed(1) : '-'}
+                                        {p.catalogRotation !== null ? p.catalogRotation.toLocaleString('fr-FR', { maximumFractionDigits: 2 }) : '-'}
                                     </td>
                                     <td className="px-6 py-4 font-bold text-foreground">{p.quantity || '1'}</td>
                                     <td className="px-6 py-4 font-mono text-xs">{p.code13 || '-'}</td>
