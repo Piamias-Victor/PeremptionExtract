@@ -101,7 +101,7 @@ const Card: React.FC<{ icon: React.ReactNode; title: string; desc: string; delay
         >
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white mb-8 shadow-2xl shadow-indigo-500/20">
-                {React.cloneElement(icon as React.ReactElement, { size: 40, strokeWidth: 1.5 })}
+                {React.cloneElement(icon as React.ReactElement<{ size: number | string; strokeWidth: number }>, { size: 40, strokeWidth: 1.5 })}
             </div>
             <h3 className="text-4xl font-bold text-white mb-4 tracking-tight">{title}</h3>
             <p className="text-xl text-zinc-400 leading-relaxed">{desc}</p>
