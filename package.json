@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "remotion": "remotion preview src/remotion/index.ts"
+    "remotion": "remotion preview src/remotion/index.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
