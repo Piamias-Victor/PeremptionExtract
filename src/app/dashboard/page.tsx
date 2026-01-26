@@ -211,20 +211,24 @@ export default function DashboardPage() {
     if (filteredAndSortedProducts.length === 0) return;
 
     // Define CSV headers
-    const headers = ['Produit', 'Code 13', 'Lot', 'Quantité', 'Date Péremption', 'Jours Restants', 'Zone', 'Opérateur', 'Date Ajout'];
+    const headers = ['Produit', 'Code 13', 'Lot', 'Quantité', 'Date Péremption', 'Jours Restants', 'Zone', 'Opérateur', 'Date Ajout', 'Analyse'];
     
     // Convert data to CSV rows
-    const rows = filteredAndSortedProducts.map(p => [
-        `"${p.name.replace(/"/g, '""')}"`, // Escape quotes
-        `"${p.code13 || ''}"`,
-        `"${p.lotNumber || ''}"`,
-        `"${p.quantity || ''}"`,
-        `"${p.expirationDate || ''}"`,
-        `"${p.daysRemaining}"`,
-        `"${p.zone || ''}"`,
-        `"${p.operator || ''}"`,
-        `"${p.invoice.uploadDate.toLocaleDateString()}"`
-    ]);
+    const rows = filteredAndSortedProducts.map(p => {
+        const analysis = getSmartStatus(p.quantity, p.catalogRotation, p.daysRemaining, p.catalogStock);
+        return [
+            `"${p.name.replace(/"/g, '""')}"`, // Escape quotes
+            `"${p.code13 || ''}"`,
+            `"${p.lotNumber || ''}"`,
+            `"${p.quantity || ''}"`,
+            `"${p.expirationDate || ''}"`,
+            `"${p.daysRemaining}"`,
+            `"${p.zone || ''}"`,
+            `"${p.operator || ''}"`,
+            `"${p.invoice.uploadDate.toLocaleDateString()}"`,
+            `"${analysis.label}"`
+        ];
+    });
 
     // Combine headers and rows
     const csvContent = [
@@ -473,7 +477,7 @@ export default function DashboardPage() {
                             <tr><td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">Aucun produit trouvé.</td></tr>
                         ) : (
                             filteredAndSortedProducts.map((p) => {
-                                const analysis = getSmartStatus(p.quantity, p.catalogRotation, p.daysRemaining);
+                                const analysis = getSmartStatus(p.quantity, p.catalogRotation, p.daysRemaining, p.catalogStock);
                                 return (
                                 <tr key={p.id} className="hover:bg-muted/10 transition-colors group">
                                     <td className="px-6 py-4 font-medium text-foreground group-hover:text-primary transition-colors max-w-[250px]">
