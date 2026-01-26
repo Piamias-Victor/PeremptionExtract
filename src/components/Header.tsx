@@ -18,6 +18,7 @@ export function Header() {
     { href: '/manual', label: 'Saisie Manuelle' },
     { href: '/history', label: 'Historique' },
     { href: '/controle-remise', label: 'Contrôle Remise' },
+    { href: '/catalog', label: 'Catalogue' },
   ];
 
   return (
