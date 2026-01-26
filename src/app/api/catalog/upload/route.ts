@@ -16,36 +16,48 @@ export async function POST(request: NextRequest) {
     const text = await file.text();
     const rows = text.split(/\r?\n/).filter(row => row.trim() !== '');
     
-    // Detect separator (simple check on first line)
-    const firstLine = rows[0];
-    const separator = firstLine.includes(';') ? ';' : ',';
+    // Detect separator: check first 5 lines
+    const sampleRows = rows.slice(0, 5);
+    const semicolonCount = sampleRows.reduce((acc, row) => acc + (row.match(/;/g) || []).length, 0);
+    const commaCount = sampleRows.reduce((acc, row) => acc + (row.match(/,/g) || []).length, 0);
+    
+    // Default to semicolon if it appears frequently
+    const separator = semicolonCount >= sampleRows.length ? ';' : ',';
+    console.log(`[DEBUG] Detected separator: '${separator}' (semicolons: ${semicolonCount}, commas: ${commaCount})`);
 
     let successCount = 0;
     let errorCount = 0;
 
-    // Skip header? We assume no header or we try to detect if first col is "ean" or similar
-    // User said: "On regarde pas les en tete... la premiere colonnes cest ean la seconde nom la troisieme stock et la derniere rtoation"
     // So we process ALL rows, but maybe skip if the first row looks like a header (e.g. contains "EAN" or "Code")
     let startIndex = 0;
     if (rows.length > 0) {
         const firstCols = rows[0].split(separator);
-        if (isNaN(Number(firstCols[0])) && firstCols[0].toLowerCase().includes('ean') || firstCols[0].toLowerCase().includes('code')) {
+        const firstVal = firstCols[0].replace(/^"|"$/g, '');
+        if (isNaN(Number(firstVal)) && (firstVal.toLowerCase().includes('ean') || firstVal.toLowerCase().includes('code'))) {
             startIndex = 1;
         }
     }
 
     for (let i = startIndex; i < rows.length; i++) {
         const row = rows[i];
-        const cols = row.split(separator).map(c => c.trim().replace(/^"|"$/g, '')); // verify quotes removal
+        if (!row.trim()) continue;
+
+        let cols = row.split(separator).map(c => c.trim().replace(/^"|"$/g, ''));
 
         if (cols.length < 4) {
-            continue; // Skip invalid rows
+             continue; // Skip invalid rows
         }
 
         const code13 = cols[0];
         const name = cols[1];
         const stockStr = cols[2];
-        const rotationStr = cols[3];
+        let rotationStr = cols[3];
+
+        // Specific fix for comma separator splitting decimal values (e.g. 15,7 -> "15", "7")
+        if (separator === ',' && cols.length > 4 && /^\d+$/.test(rotationStr) && /^\d+$/.test(cols[4])) {
+             rotationStr = `${rotationStr},${cols[4]}`;
+             console.log(`[DEBUG] Reconstructed split rotation: ${rotationStr}`);
+        }
 
         if (!code13 || code13.length < 8) { // Basic validation
              errorCount++;
@@ -65,6 +77,7 @@ export async function POST(request: NextRequest) {
         if (rotationStr && rotationStr.toLowerCase() !== 'n/a') {
             const normalized = rotationStr.replace(',', '.').replace(/\s/g, '');
             rotation = parseFloat(normalized);
+            console.log(`[DEBUG] Row ${i}: rotationStr="${rotationStr}" -> normalized="${normalized}" -> parsed=${rotation}`);
             if (isNaN(rotation)) rotation = 0;
         }
 
