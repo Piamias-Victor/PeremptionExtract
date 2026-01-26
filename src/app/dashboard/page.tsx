@@ -15,6 +15,8 @@ interface RawProduct extends Omit<Product, 'expirationDate'> {
     catalogStock: number | null;
     catalogRotation: number | null;
     catalogLastUpdated: string | null;
+    zone?: string | null;
+    operator?: string | null;
     invoice: {
         filename: string;
         uploadDate: string;
@@ -32,6 +34,8 @@ interface ProductWithInvoice extends Product {
   catalogStock: number | null;
   catalogRotation: number | null;
   catalogLastUpdated: Date | null;
+  zone?: string | null;
+  operator?: string | null;
 }
 
 const SortIcon = ({ field, currentSort, ascending }: { field: string, currentSort: string, ascending: boolean }) => {
