@@ -42,3 +42,12 @@ model ProcessedEmail {
   subject     String?
   sender      String?
 }
+
+model CatalogProduct {
+  code13      String   @id
+  ref         String?
+  name        String
+  stock       Int      @default(0)
+  rotation    Float?
+  lastUpdated DateTime @default(now())
+}

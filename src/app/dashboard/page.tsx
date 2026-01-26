@@ -12,6 +12,9 @@ import { Badge } from '@/components/ui/Badge';
 // Type matchings
 interface RawProduct extends Omit<Product, 'expirationDate'> {
     expirationDate: string;
+    catalogStock: number | null;
+    catalogRotation: number | null;
+    catalogLastUpdated: string | null;
     invoice: {
         filename: string;
         uploadDate: string;
@@ -26,6 +29,9 @@ interface ProductWithInvoice extends Product {
   parsedDate: Date | null;
   daysRemaining: number;
   urgency: UrgencyLevel;
+  catalogStock: number | null;
+  catalogRotation: number | null;
+  catalogLastUpdated: Date | null;
 }
 
 const SortIcon = ({ field, currentSort, ascending }: { field: string, currentSort: string, ascending: boolean }) => {
@@ -58,13 +64,15 @@ export default function DashboardPage() {
              const daysRemaining = parsedDate ? getDaysRemaining(parsedDate) : 9999;
              const urgency = getUrgencyLevel(parsedDate);
              const invoiceDate = new Date(p.invoice.uploadDate);
+             const lastUpdated = p.catalogLastUpdated ? new Date(p.catalogLastUpdated) : null;
              
              return { 
                  ...p, 
                  invoice: { ...p.invoice, uploadDate: invoiceDate },
                  parsedDate, 
                  daysRemaining, 
-                 urgency 
+                 urgency,
+                 catalogLastUpdated: lastUpdated
              };
         });
         setProducts(enriched);
@@ -149,6 +157,42 @@ export default function DashboardPage() {
     }
   };
 
+  const handleExport = () => {
+    if (filteredAndSortedProducts.length === 0) return;
+
+    // Define CSV headers
+    const headers = ['Produit', 'Code 13', 'Lot', 'Quantité', 'Date Péremption', 'Jours Restants', 'Zone', 'Opérateur', 'Date Ajout'];
+    
+    // Convert data to CSV rows
+    const rows = filteredAndSortedProducts.map(p => [
+        `"${p.name.replace(/"/g, '""')}"`, // Escape quotes
+        `"${p.code13 || ''}"`,
+        `"${p.lotNumber || ''}"`,
+        `"${p.quantity || ''}"`,
+        `"${p.expirationDate || ''}"`,
+        `"${p.daysRemaining}"`,
+        `"${p.zone || ''}"`,
+        `"${p.operator || ''}"`,
+        `"${p.invoice.uploadDate.toLocaleDateString()}"`
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [
+        headers.join(','), 
+        ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Create blobs and trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `export_peremptions_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto w-full animate-fade-in space-y-8">
         {/* Header */}
@@ -163,6 +207,14 @@ export default function DashboardPage() {
                     ← Accueil
                  </Button>
                </Link>
+               <Button 
+                 onClick={handleExport}
+                 variant="outline"
+                 className="bg-emerald-500/10 text-emerald-600 border-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-700 hover:border-emerald-300 transition-colors"
+                 disabled={filteredAndSortedProducts.length === 0}
+               >
+                 ↓ Exporter CSV
+               </Button>
                <SyncEmailButton onSyncComplete={() => { setLoading(true); fetchProducts(); }} />
           </div>
         </header>
@@ -293,6 +345,15 @@ export default function DashboardPage() {
                             <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('name')}>
                                 Produit <SortIcon field="name" currentSort={sortField} ascending={sortAsc} />
                             </th>
+                            <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('catalogStock')}>
+                                Stock <SortIcon field="catalogStock" currentSort={sortField} ascending={sortAsc} />
+                            </th>
+                            <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('catalogRotation')}>
+                                Rot. <SortIcon field="catalogRotation" currentSort={sortField} ascending={sortAsc} />
+                            </th>
+                            <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('quantity')}>
+                                Qté Saisie <SortIcon field="quantity" currentSort={sortField} ascending={sortAsc} />
+                            </th>
                             <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('code13')}>
                                 Code 13 <SortIcon field="code13" currentSort={sortField} ascending={sortAsc} />
                             </th>
@@ -302,6 +363,9 @@ export default function DashboardPage() {
                             <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('daysRemaining')}>
                                 Péremption <SortIcon field="daysRemaining" currentSort={sortField} ascending={sortAsc} />
                             </th>
+                            <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('operator')}>
+                                Opérateur <SortIcon field="operator" currentSort={sortField} ascending={sortAsc} />
+                            </th>
                             <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors text-center" onClick={() => handleSort('daysRemaining')}>
                                 État <SortIcon field="daysRemaining" currentSort={sortField} ascending={sortAsc} />
                             </th>
@@ -309,13 +373,34 @@ export default function DashboardPage() {
                     </thead>
                     <tbody className="divide-y divide-border/50">
                         {loading ? (
-                            <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">Chargement des données...</td></tr>
+                            <tr><td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">Chargement des données...</td></tr>
                         ) : filteredAndSortedProducts.length === 0 ? (
-                            <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">Aucun produit trouvé.</td></tr>
+                            <tr><td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">Aucun produit trouvé.</td></tr>
                         ) : (
                             filteredAndSortedProducts.map((p) => (
                                 <tr key={p.id} className="hover:bg-muted/10 transition-colors group">
-                                    <td className="px-6 py-4 font-medium text-foreground group-hover:text-primary transition-colors">{p.name}</td>
+                                    <td className="px-6 py-4 font-medium text-foreground group-hover:text-primary transition-colors max-w-[250px]">
+                                        <div className="flex flex-col">
+                                            <span className="truncate" title={p.name}>{p.name}</span>
+                                            <span className="text-xs text-muted-foreground hidden lg:inline-block">{p.zone || '-'}</span>
+                                            {p.catalogLastUpdated && (
+                                                <span className="text-[10px] text-muted-foreground opacity-60">
+                                                   Màj: {p.catalogLastUpdated.toLocaleDateString()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm">
+                                        {p.catalogStock !== null ? (
+                                            <Badge variant="outline" className={`border-0 ${p.catalogStock > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                {p.catalogStock}
+                                            </Badge>
+                                        ) : '-'}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm font-mono text-muted-foreground">
+                                        {p.catalogRotation !== null ? p.catalogRotation.toFixed(1) : '-'}
+                                    </td>
+                                    <td className="px-6 py-4 font-bold text-foreground">{p.quantity || '1'}</td>
                                     <td className="px-6 py-4 font-mono text-xs">{p.code13 || '-'}</td>
                                     <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{p.lotNumber || '-'}</td>
                                     <td className="px-6 py-4">
@@ -323,6 +408,9 @@ export default function DashboardPage() {
                                             <span className="font-semibold text-foreground">{formatFrenchDate(p.parsedDate)}</span>
                                             <span className="text-xs text-muted-foreground">Source: {p.expirationDate}</span>
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-xs font-semibold text-indigo-400">
+                                        {p.operator || '-'}
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         {p.parsedDate ? (
