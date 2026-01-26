@@ -43,13 +43,39 @@ const SortIcon = ({ field, currentSort, ascending }: { field: string, currentSor
     return <span className="text-primary ml-1">{ascending ? '↑' : '↓'}</span>;
 };
 
+// Helper for Smart Status
+const getSmartStatus = (quantity: string | number | null | undefined, rotation: number | null, daysRemaining: number, catalogStock: number | null) => {
+    const qtyInput = quantity ? parseInt(quantity.toString()) : 0;
+    // Use Catalog Stock if available and greater than valid input, otherwise fallback to input
+    const stockToConsider = (catalogStock && catalogStock > 0) ? catalogStock : qtyInput;
+
+    // Case 1: No rotation or 0 -> Urgent
+    if (!rotation || rotation === 0) return { status: 'URGENT', label: 'Urgent (Rot. 0)', color: 'destructive' as const, className: 'bg-red-600 text-white hover:bg-red-700' };
+    
+    // Case 2: Calculate days to sell out the ENTRIE stock
+    const daysToSell = (stockToConsider * 30) / rotation;
+    
+    // Case 3: Sell out takes longer than expiration -> CRITICAL (Surstock)
+    if (daysToSell > daysRemaining) {
+        return { status: 'CRITICAL', label: 'Surstock', color: 'destructive' as const, className: 'bg-red-600 text-white hover:bg-red-700' };
+    }
+
+    // Case 4: Tight margin (e.g. sells out within 80% of remaining time) -> WARNING
+    if (daysToSell > daysRemaining * 0.7) {
+        return { status: 'WARNING', label: 'Tendu', color: 'warning' as const, className: 'bg-orange-500 text-white hover:bg-orange-600' };
+    }
+    
+    // Case 5: OK
+    return { status: 'OK', label: 'OK', color: 'success' as const, className: 'bg-emerald-600 text-white hover:bg-emerald-700' };
+};
+
 export default function DashboardPage() {
   const [products, setProducts] = useState<ProductWithInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
   const [search, setSearch] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'critical' | 'warning' | 'custom'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'critical' | 'warning' | 'custom' | 'analysis_urgent' | 'analysis_surstock' | 'analysis_tendu' | 'analysis_ok'>('all');
   
   // Custom Date Filter State
   const [customStartDate, setCustomStartDate] = useState<string>('');
@@ -110,6 +136,26 @@ export default function DashboardPage() {
         result = result.filter(p => p.urgency === 'critical');
     } else if (filterMode === 'warning') {
         result = result.filter(p => p.urgency === 'critical' || p.urgency === 'warning');
+    } else if (filterMode === 'analysis_urgent') {
+        result = result.filter(p => {
+             const analysis = getSmartStatus(p.quantity, p.catalogRotation, p.daysRemaining, p.catalogStock);
+             return analysis.label === 'Urgent (Rot. 0)';
+        });
+    } else if (filterMode === 'analysis_surstock') {
+        result = result.filter(p => {
+             const analysis = getSmartStatus(p.quantity, p.catalogRotation, p.daysRemaining, p.catalogStock);
+             return analysis.label === 'Surstock';
+        });
+    } else if (filterMode === 'analysis_tendu') {
+        result = result.filter(p => {
+             const analysis = getSmartStatus(p.quantity, p.catalogRotation, p.daysRemaining, p.catalogStock);
+             return analysis.label === 'Tendu';
+        });
+    } else if (filterMode === 'analysis_ok') {
+        result = result.filter(p => {
+             const analysis = getSmartStatus(p.quantity, p.catalogRotation, p.daysRemaining, p.catalogStock);
+             return analysis.status === 'OK';
+        });
     } else if (filterMode === 'custom') {
         if (customStartDate && customEndDate) {
             const start = new Date(customStartDate);
@@ -267,48 +313,98 @@ export default function DashboardPage() {
             </Card>
         </div>
 
-        {/* Filters Toolbar */}
-        <div className="glass-panel p-4 rounded-xl flex flex-col gap-4">
-            <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
-                <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-                    <span className="text-sm font-medium text-muted-foreground mr-2">Filtres:</span>
-                    <div className="inline-flex rounded-lg shadow-sm border border-input overflow-hidden">
-                        <button 
-                            onClick={() => setFilterMode('all')}
-                            className={`px-4 py-2 text-sm font-medium transition-colors ${filterMode === 'all' ? 'bg-indigo-600 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'}`}>
-                            Tout
-                        </button>
-                        <button 
-                            onClick={() => setFilterMode('warning')}
-                            className={`px-4 py-2 text-sm font-medium transition-colors border-l border-input ${filterMode === 'warning' ? 'bg-orange-600 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'}`}>
-                            &lt; 3 Mois
-                        </button>
-                        <button 
-                            onClick={() => setFilterMode('critical')}
-                            className={`px-4 py-2 text-sm font-medium transition-colors border-l border-input ${filterMode === 'critical' ? 'bg-red-600 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'}`}>
-                            &lt; 1 Mois
-                        </button>
-                         <button 
-                            onClick={() => setFilterMode('custom')}
-                            className={`px-4 py-2 text-sm font-medium transition-colors border-l border-input ${filterMode === 'custom' ? 'bg-purple-600 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'}`}>
-                            Personnalisé
-                        </button>
+        {/* Improved Filters Toolbar with Legend */}
+        <div className="glass-panel p-4 rounded-xl flex flex-col gap-6">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                
+                {/* Filters Group */}
+                <div className="flex flex-col gap-3 w-full xl:w-auto">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Péremption:</span>
+                        <div className="inline-flex flex-wrap gap-1">
+                             <button 
+                                onClick={() => setFilterMode('all')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors border ${filterMode === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-background text-muted-foreground border-input hover:bg-muted'}`}>
+                                Tout
+                            </button>
+                            <button 
+                                onClick={() => setFilterMode('critical')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors border ${filterMode === 'critical' ? 'bg-red-600 text-white border-red-600' : 'bg-background text-muted-foreground border-input hover:bg-muted'}`}>
+                                &lt; 30j
+                            </button>
+                            <button 
+                                onClick={() => setFilterMode('warning')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors border ${filterMode === 'warning' ? 'bg-orange-600 text-white border-orange-600' : 'bg-background text-muted-foreground border-input hover:bg-muted'}`}>
+                                &lt; 90j
+                            </button>
+                             <button 
+                                onClick={() => setFilterMode('custom')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors border ${filterMode === 'custom' ? 'bg-purple-600 text-white border-purple-600' : 'bg-background text-muted-foreground border-input hover:bg-muted'}`}>
+                                Perso
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                         <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Analyse:</span>
+                         <div className="inline-flex flex-wrap gap-1">
+                            <button 
+                                onClick={() => setFilterMode('analysis_urgent')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors border ${filterMode === 'analysis_urgent' ? 'bg-red-600 text-white border-red-600' : 'bg-background text-muted-foreground border-input hover:bg-muted'}`}>
+                                Urgent (Rot. 0)
+                            </button>
+                            <button 
+                                onClick={() => setFilterMode('analysis_surstock')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors border ${filterMode === 'analysis_surstock' ? 'bg-red-600 text-white border-red-600' : 'bg-background text-muted-foreground border-input hover:bg-muted'}`}>
+                                Surstock
+                            </button>
+                            <button 
+                                onClick={() => setFilterMode('analysis_tendu')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors border ${filterMode === 'analysis_tendu' ? 'bg-orange-500 text-white border-orange-500' : 'bg-background text-muted-foreground border-input hover:bg-muted'}`}>
+                                Tendu
+                            </button>
+                            <button 
+                                onClick={() => setFilterMode('analysis_ok')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors border ${filterMode === 'analysis_ok' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-background text-muted-foreground border-input hover:bg-muted'}`}>
+                                OK
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div className="relative w-full lg:w-96">
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                        <svg className="w-4 h-4 text-muted-foreground" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
-                            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
-                        </svg>
+                {/* Legend & Search */}
+                <div className="flex flex-col lg:flex-row items-end gap-4 w-full xl:w-auto">
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 text-[10px] text-muted-foreground border border-border/50 rounded-lg px-3 py-2 bg-muted/30">
+                        <span className="font-semibold px-2 border-r border-border/50">Légende :</span>
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-red-600"></span>
+                            <span>Surstock / Rot. 0</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                            <span>Flux Tendu</span>
+                        </div>
+                         <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                            <span>OK</span>
+                        </div>
                     </div>
-                    <input 
-                        type="text" 
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="block w-full p-2.5 pl-10 text-sm text-foreground bg-muted/50 border border-input rounded-lg focus:ring-indigo-500 focus:border-indigo-500 placeholder-muted-foreground transition-all focus:bg-muted" 
-                        placeholder="Rechercher (Nom, Code 13, Lot...)" 
-                    />
+
+                    <div className="relative w-full lg:w-72">
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <svg className="w-4 h-4 text-muted-foreground" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                                <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                            </svg>
+                        </div>
+                        <input 
+                            type="text" 
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="block w-full p-2.5 pl-10 text-sm text-foreground bg-muted/50 border border-input rounded-lg focus:ring-indigo-500 focus:border-indigo-500 placeholder-muted-foreground transition-all focus:bg-muted" 
+                            placeholder="Rechercher..." 
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -358,20 +454,15 @@ export default function DashboardPage() {
                             <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('quantity')}>
                                 Qté Saisie <SortIcon field="quantity" currentSort={sortField} ascending={sortAsc} />
                             </th>
-                            <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('code13')}>
-                                Code 13 <SortIcon field="code13" currentSort={sortField} ascending={sortAsc} />
-                            </th>
-                            <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('lotNumber')}>
-                                Lot <SortIcon field="lotNumber" currentSort={sortField} ascending={sortAsc} />
-                            </th>
                             <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('daysRemaining')}>
                                 Péremption <SortIcon field="daysRemaining" currentSort={sortField} ascending={sortAsc} />
                             </th>
+                             {/* New Column Header */}
+                            <th scope="col" className="px-6 py-4 text-center">
+                                Analyse
+                            </th>
                             <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort('operator')}>
                                 Opérateur <SortIcon field="operator" currentSort={sortField} ascending={sortAsc} />
-                            </th>
-                            <th scope="col" className="px-6 py-4 cursor-pointer hover:text-primary transition-colors text-center" onClick={() => handleSort('daysRemaining')}>
-                                État <SortIcon field="daysRemaining" currentSort={sortField} ascending={sortAsc} />
                             </th>
                         </tr>
                     </thead>
@@ -381,7 +472,9 @@ export default function DashboardPage() {
                         ) : filteredAndSortedProducts.length === 0 ? (
                             <tr><td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">Aucun produit trouvé.</td></tr>
                         ) : (
-                            filteredAndSortedProducts.map((p) => (
+                            filteredAndSortedProducts.map((p) => {
+                                const analysis = getSmartStatus(p.quantity, p.catalogRotation, p.daysRemaining);
+                                return (
                                 <tr key={p.id} className="hover:bg-muted/10 transition-colors group">
                                     <td className="px-6 py-4 font-medium text-foreground group-hover:text-primary transition-colors max-w-[250px]">
                                         <div className="flex flex-col">
@@ -405,33 +498,30 @@ export default function DashboardPage() {
                                         {p.catalogRotation !== null ? p.catalogRotation.toLocaleString('fr-FR', { maximumFractionDigits: 2 }) : '-'}
                                     </td>
                                     <td className="px-6 py-4 font-bold text-foreground">{p.quantity || '1'}</td>
-                                    <td className="px-6 py-4 font-mono text-xs">{p.code13 || '-'}</td>
-                                    <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{p.lotNumber || '-'}</td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
                                             <span className="font-semibold text-foreground">{formatFrenchDate(p.parsedDate)}</span>
-                                            <span className="text-xs text-muted-foreground">Source: {p.expirationDate}</span>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <Badge variant={
+                                                    p.daysRemaining <= 30 ? 'destructive' : 
+                                                    p.daysRemaining <= 90 ? 'warning' : 'success'
+                                                } className="text-[10px] px-1 py-0 h-5">
+                                                    {p.daysRemaining} j
+                                                </Badge>
+                                            </div>
                                         </div>
+                                    </td>
+                                    {/* New Analysis Cell */}
+                                    <td className="px-6 py-4 text-center">
+                                        <Badge variant="default" className={`w-24 justify-center shadow-sm select-none border-0 ${analysis.className}`}>
+                                            {analysis.label}
+                                        </Badge>
                                     </td>
                                     <td className="px-6 py-4 text-xs font-semibold text-indigo-400">
                                         {p.operator || '-'}
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                        {p.parsedDate ? (
-                                            <Badge variant={
-                                                p.daysRemaining <= 30 ? 'destructive' : 
-                                                p.daysRemaining <= 90 ? 'warning' : 'success'
-                                            } className="w-28 justify-center">
-                                                {p.daysRemaining} Jours
-                                            </Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="w-28 justify-center border-input text-muted-foreground">
-                                                Inconnu
-                                            </Badge>
-                                        )}
-                                    </td>
                                 </tr>
-                            ))
+                            )})
                         )}
                     </tbody>
                 </table>
@@ -439,9 +529,9 @@ export default function DashboardPage() {
              <div className="bg-muted/50 px-6 py-3 border-t border-border text-xs text-muted-foreground flex justify-between items-center">
                 <span>Total: {filteredAndSortedProducts.length} produits</span>
                 <div className="flex gap-4">
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span> &lt; 30j</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500"></span> &lt; 90j</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> &gt; 90j</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-600"></span> Surstock / Rot. 0</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500"></span> Flux Tendu</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-600"></span> OK</span>
                 </div>
             </div>
         </div>
