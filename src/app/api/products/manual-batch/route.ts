@@ -52,10 +52,9 @@ export async function POST(request: NextRequest) {
     });
 
     // 2. Process products and resolve names
-    const productsToCreate = [];
+    // 2. Process products and resolve names in PARALLEL
     const targetZone = zone || "DEPOT"; // Default to DEPOT if not specified
-
-    for (const p of products) {
+    const productsToCreate = await Promise.all(products.map(async (p) => {
       let resolvedName = "Produit Inconnu (Manual)";
       let resolvedPrice = null;
       let resolvedPriceRemise = null;
@@ -77,21 +76,19 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      productsToCreate.push({
+      return {
         invoiceId: invoice.id,
         code13: p.code13,
         name: resolvedName,
         quantity: p.quantity,
-        expirationDate: p.expirationDate, // We store the raw date string from input (YYYY-MM-DD)
-        // Copying pricing info if available, otherwise null
+        expirationDate: p.expirationDate, 
         prix_sans_remise: resolvedPrice,
         prix_remisee: resolvedPriceRemise,
-        // Manual entry metadata
         lotNumber: "MANUAL",
         zone: targetZone,
         operator: operator,
-      });
-    }
+      };
+    }));
 
     // 3. Batch Insert
     await prisma.product.createMany({
